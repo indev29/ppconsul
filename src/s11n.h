@@ -6,26 +6,27 @@
 
 #include "ppconsul/config.h"
 #include "ppconsul/error.h"
-#include <json11/json11.hpp>
+#include <rapidjson/rapidjson.h>
 #include <vector>
 #include <chrono>
 #include <set>
 #include <map>
 #include <string>
 
-
 namespace ppconsul { namespace s11n {
 
-    using json11::Json;
+    using Json = rapidjson::Value;
 
     namespace detail {
-        inline Json parse_json(const std::string &s)
+        inline Json parse_json(const std::string& s)
         {
-            std::string err;
-            auto obj = Json::parse(s, err);
-            if (!err.empty())
-                throw FormatError(std::move(err));
-            return obj;
+            rapidjson::Document document;
+            auto parse_result = document.Parse(s);
+            if (!parse_result)
+            {
+                throw FormatError(GetParseError_En(parse_result.Code()));
+            }
+            return document;
         }
     }
 
@@ -46,42 +47,47 @@ namespace ppconsul { namespace s11n {
 
     inline void load(const Json& src, uint16_t& dst)
     {
-        dst = static_cast<int>(src.int_value());
+        dst = (src.IsUInt()) ? static_cast<uint16_t>(src.UInt()) : 0;
     }
 
     inline void load(const Json& src, bool& dst)
     {
-        dst = static_cast<int>(src.bool_value());
+        dst = (src.IsBool()) ? src.GetBool() : false; 
     }
 
     inline void load(const Json& src, int& dst)
     {
-        dst = static_cast<int>(src.int_value());
+        dst = (src.IsInt()) ? src.GetInt() : 0;
     }
 
     inline void load(const Json& src, uint64_t& dst)
     {
-        // TODO: support full precision of uint64_t in json11
-        dst = static_cast<uint64_t>(src.number_value());
+        dst = (src.IsUInt64()) ? src.GetUInt64() : 0;
     }
 
     inline void load(const Json& src, std::chrono::minutes& dst)
     {
-        dst = std::chrono::minutes(static_cast<int>(src.number_value()));
+        dst = std::chrono::minutes((src.IsUInt()) ? src.GetUInt() : 0);
     }
 
     inline void load(const Json& src, std::string& dst)
     {
-        dst = src.string_value();
+        dst = (src.IsString()) ? src.GetString() : "";
     }
 
-    template<class T>    
+    template<class T>
     void load(const Json& src, std::vector<T>& dst)
     {
-        const auto& arr = src.array_items();
-        
         dst.clear();
-        dst.reserve(arr.size());
+
+        if (!src.IsArray())
+        {
+            return;
+        }
+
+        const auto& arr = src.GetArray();
+
+        dst.reserve(arr.Size());
 
         for (const auto& i : arr)
         {
@@ -94,9 +100,14 @@ namespace ppconsul { namespace s11n {
     template<class T>
     void load(const Json& src, std::set<T>& dst)
     {
-        const auto& arr = src.array_items();
-
         dst.clear();
+
+        if (!src.IsArray())
+        {
+            return;
+        }
+
+        const auto& arr = src.GetArray();
 
         for (const auto& i : arr)
         {
@@ -109,22 +120,35 @@ namespace ppconsul { namespace s11n {
     template<class T>
     void load(const Json& src, std::map<std::string, T>& dst)
     {
-        const auto& obj = src.object_items();
-
         dst.clear();
+
+        if (!src.IsObject())
+        {
+            return;
+        }
+
+        const auto& obj= src.GetObject();
 
         for (const auto& i : obj)
         {
             T t;
-            load(i.second, t);
-            dst.emplace(i.first, std::move(t));
+            load(i.value, t);
+            dst.emplace(i.name, std::move(t));
         }
     }
 
     template<class T>
     void load(const Json& src, T& dst, const char *name)
     {
-        load(src[name], dst);
+        if (src.HasMemeber(name))
+        {
+            load(src[name], dst);
+        }
+        else
+        {
+            load(Json{}, dst);
+        }
+
     }
 
     template<class T>

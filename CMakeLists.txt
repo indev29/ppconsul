@@ -77,7 +77,6 @@ if (WIN32 AND NOT BUILD_STATIC_LIB)
     message(FATAL_ERROR "Building Ppconsul as dynamic library on Windows is not supported, see https://github.com/oliora/ppconsul/issues/25")
 endif()
 
-add_subdirectory(ext/json11)
 add_subdirectory(src)
 
 option(BUILD_TESTS "Flag to use to build test or not" ON)
@@ -97,7 +96,7 @@ export(EXPORT ${CMAKE_PROJECT_NAME} FILE ppconsulConfig.cmake)
 # Generate and install pkg-config file
 if (NOT WIN32 OR CYGWIN)
     if (BUILD_STATIC_LIB)
-        set(ppconsul_libs "-lppconsul -ljson11")
+        set(ppconsul_libs "-lppconsul")
     else()
         set(ppconsul_libs "-lppconsul")
     endif()
